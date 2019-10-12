@@ -1,1 +1,109 @@
+实验目的：
+  通过观察、分析实验现象，深入了解进程及线程在调度执行和内存空间等方面的特点，掌握在POSIX规范中fork和kill系统调用的功能和使用。
+  POSIX ： 可移植操作系统接口（英语：Portable Operating System Interface，缩写为POSIX）是IEEE为要在各种UNIX操作系统上运行软件，
+而定义API的一系列互相关联的标准的总称
 
+实验前准备：
+  学习fork和kill函数，及其用法
+    pid_t fork(void);
+      返回值：给父进程：子进程的pid
+              给子进程： 0
+      pid_t 实际为int类型，进程的唯一标识
+      调用fork()函数的为父进程，创建的为子进程
+    kill(int PID,int IID)
+      根据指定PID杀死进程
+      PID ： 进程号
+      IID ： 向将被杀死的进程发送的中断号
+  复习C语言相关知识
+
+实验源代码：
+/*POSIX下进程控制的实验*/
+#include <stdio.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <signal.h>
+#include <ctype.h>
+#include <stdlib.h>
+
+#define MAX_CHILD_NUMBER 10 //允许建立的子进程的最大值
+#define SLEEP_INTERVAL 2 //子进程睡眠时间
+
+int proc_number = 0;    //子进程的编号，从0开始
+void do_something(){
+    for(;;){
+    printf("this is No.%d process,the pid is %d\n ",proc_number,getpid());
+    sleep(SLEEP_INTERVAL); //进程主动阻塞2s
+    }
+
+//  printf("HELLO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+//  sleep(SLEEP_INTERVAL); //进程主动阻塞两秒
+  return ;
+}
+int main(int argc,char *argv[]){
+  int child_proc_number = MAX_CHILD_NUMBER;     //设置子进程的最大个数
+  int i,ch;
+  pid_t child_pid;
+  pid_t pid[10] = {0};  //存放每个子进程的 pid
+
+  if(argc > 1){ //运行时，命令行第一个参数表示子进程的个数
+    child_proc_number = atoi(argv[1]);
+    child_proc_number = (child_proc_number > 10) ? 10 : child_proc_number;
+
+  }
+
+  for(i = 0;i < child_proc_number;i ++){
+    /*
+     *此处创建child_proc_number个子进程
+     *proc_number = i;   进程编号
+     *do_something(); 每个进程输出编号的 pid
+     *当前进程为父进程时，将子进程的pid保存在pid{i]中
+     * */
+        child_pid = fork(); //创建子进程
+    if(child_pid == 0){ //子进程
+      proc_number = i;
+      do_something();
+    }
+    else if(child_pid > 0){ //父进程
+      pid[i] = child_pid;
+    }
+    else{
+      printf("子进程创建失败！\n");
+    }
+  }
+
+  //通过用户输入的编号杀死对应子进程
+  ch = getchar();
+  while(ch != 'q'){
+
+    if(isdigit(ch)){ //根据编号
+      kill(pid[ch - '0'],SIGTERM);
+      /*kill(int pid,int IID)
+       * 该函数根据指定的pid杀死对应进程
+         * pid 为指定的进程号
+       * IID 为向将被杀死的进程发送的中断号，上述SIGTERM为默认信号
+       * */
+    }
+    ch = getchar();
+  }
+  kill(0,SIGTERM);
+  //0号进程为所有子进程的父进程，所有结束该父进程则结束所有子进程
+  return 0;
+}
+
+
+实验结果：
+  猜想运行结果：根据输入的proc_number创建子进程，大于10则最多创建10个，否则创建对应个数；按照顺序依次输出编号和进程的pid；输入编号，
+则杀死对应进程，输入'q'则停止运行
+  实际运行结果：基本符合预想，不过每次输出结果不按照顺序排列
+  运行"ps aux|grep 程序名" 命令时，每结束一个子进程，该进程对应行后添加 <defunct> 标志，表示该进程死亡；输入'q'后，所有进程相关信息不再显示
+
+实验感想：
+  这是第一个真正意义上的操作系统的上机实验（上一个实验内容主要要求熟悉环境、vim使用、输入法配置、.c文件编译等），说实话比想象中更加有趣，
+但第一次做实验的时候有点“别扭”，大概是因为没有自己做出来，请教了同学后才恍然大悟地完成了实验内容。在代码编写和调试的过程中一度心态要崩掉
+（虽然好像不是很难，但是我确实没有做出来，开始没有理解实验的目的到底是什么）最后在同学的细心讲解和大神的“帮助文档”下，才弄懂了。
+
+2019.10.12 星期六
+  
+  
+  
+  
