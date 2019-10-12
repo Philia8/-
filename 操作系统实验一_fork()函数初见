@@ -1,0 +1,34 @@
+实验目的：了解fork()函数的作用，掌握其返回值的含义，并尝试调用函数，观察结果
+
+fork()函数：
+  pid_t fork(void)
+  作用：创建子进程
+  返回值：
+    给父进程返回子进程的pid （>0）
+    给子进程返回 0
+
+参考源码：
+#include <stdio.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/wait.h>
+/*
+ *实验一
+ * */
+int main(void){
+
+  pid_t pc;
+
+  printf("子进程创建之前!\n"); 
+  //以此条语句判断子进程是否会执行父进程中fork()语句之前的语句，证明不会
+  
+  //创建进程，判断进程是子进程还是父进程
+  pc = fork();
+
+  if(pc < 0) printf("error!!!");  //子进程创建失败
+  else if(pc == 0) printf("子进程子进程\n子_PID = %d\n",getpid());
+  else printf("父进程父进程\n父_PID = %d\n",getpid());
+
+  printf("ppid = %d\n",getppid());  //输出当前进程的父进程的pid
+  return 0;
+}
