@@ -1,1 +1,600 @@
 时间安排：2019.10.18 周五前完成总结
+1.实验目的：
+  一人一组为单位，以任意语言实现词法分析器简单要求
+2.分析思路：
+（1）单词分类表：
+标识符	作为一类
+（识别时建立标识符表）	(字母|下划线)（数字|字母|下划线）*
+常数	作为一类（识别时建立常数表）	（数字）+  闭包，至少一个数字组成
+界符、运算符	一词一类
+（提前建立）	"(", ")", "[", "]","{","}", ".","~","^","," ,":","%","\'","\\","?",
+	"+","+=","++","-","-=","--","->","*","*=","/","/=","=","==","&","&&","<","<=",
+	"<<",">",">=",">>","|","||","!","!=",";","_","#","\""
+保留字	一词一类
+（提前建立）	auto   break    case     char        const      continue  default    do       double   else        enum       extern    float      for      goto     if          int        long      register   return   short    signed      sizeof    static  
+struct     switch   typedef  union    unsigned   void  volatile    while
+（2）编码情况		
+//保留字
+1."auto", 
+......
+31."volatile",
+32. "while"
+//运算符界符（因为运算符和界符无法完全分离，强行分离导致词法混乱，比如'，'作为界符，也可作为“逗号表达式”的运算符）
+/*部分解释*/
+//	"(", ")", "[", "]", "->", ".", //后两种为结构成员访问 
+//	"!", "~", "++" , "--", //否定，按位否定 ，自增，自减 
+//	"*", "/", "+","-","*=","/=","+=","-=","%",	//普通运算,赋值 
+//	"<<", ">>",	//位运算 
+//	"<", "<=", ">", ">=","==","!=",	//比较 
+//	"&",	//按位与 
+//	"^",	//按位异或 
+//	"|",	//按位或 
+//	"||",	//逻辑或 
+//	"&&",	//逻辑与 
+//	"?",":",	//条件 
+//	",", 	//逗号运算符（表顺序） 
+//	"{","}",	//界符，还包括<>,(),[],:,; 
+//	"'",
+//	"\\"	//转义字符，相当于 '\' 
+33."(", 
+34.")",
+......
+45."\'",	//单引号
+46."\\",
+47."?",
+48."+",
+49."+=",
+50."++",
+......
+71."!",
+72."!=" ,
+73.";",
+74.“_”,
+75.“#”
+76.“\””
+常数：99
+标识符：100
+编码说明:
+  一开始看了实验要求和别人的分析思路时，一度不能理解为什么要进行编码这一步，直到突然想通：在进行源代码扫描的时候，得到返回的值始终是编码，
+可以更直接明了的对当前单词进行归类，尤其对保留字和运算符的查找和输出更为方便。
+（3）单词结构描述（正规式或正规文法）
+<单词>→<标识符>|<保留字>|<常数>|<运算符界符>|<字母>|<数字>
+字母或下划线开头的字母下划线数字串
+<标识符>→<字母>|<数字>(<字母>|<数字>|<下划线>)*
+数字开头的，最多只有一个小数点的数字小数点串
+<常数>→<数字>(<数字>|<.>)*
+<保留字>→auto|break|case|char|const|continue|default|do|double|   	else|enum|extern|float|for|goto|if|int|long|register|return|short	|signed|sizeof|static|struct|switch|typedef|union|unsigned|void|
+Volatile|while
+<运算符界符>→"(" | ")" | "[" | "]" | "{" | "}" | "." | "~" | "^" | "," | ":" | "%" | "\'" | "\\" |  				"?" | "+" | "+=" | "++" | "-" | "-=" | "--" | “->” | "*" | "*=" | "/" | "/=" | "=" |
+"==" | "&" | "&&" | "<" | "<=" | "<<" | ">" | ">=" | ">>" | "|" | "||" | "!" | 	"!=" | ";" | “_” | “#” | “\””
+（4）算法描述
+  a)从文件中读入要分析的源程序
+  b)对源程序进行预处理：包括消除注释（单行注释、多行注释），去掉除空格外的所有空白字符
+  c)程序扫描过程：判断扫描到的单词是保留字、标识符、常数、运算符、界符中的哪一类，返回对应编码，根据格式输出对应类别单词，常数和标识符分别建立存储表
+  d)程序以扫描到’$’该符号结束
+（5）程序结构
+  a)保留字表 reserveWord，存储收集的32个保留字，
+    常数表number动态存储扫描过程中出现的常数，
+    运算符界符表OperatorOrDelimeter，下标与运算符界符编号	相关
+    标识符表biaoShi，动态存储扫描过程中出现的标识符
+  b)fileFilter()方法：文件预处理
+  c)Scanner()方法：扫描文件，其中进行常数、保留字、运算符等的判断识别和编号返回
+  d)isReserveWord()方法：判断是否为保留字
+  d)isDigit()方法：判断是否为数字
+  e)isCharacter()方法：判断是否为字母
+3.功能实现：
+  （1）文件预处理：对源文件中的注释进行过滤，预处理后所有空白字符包括('\n','\t',空格等)一律删除
+  （2）动态建立标识符表和常数表，除扫描过程中动态输出外，最后进行统一依次输出
+  （3）常数识别包括整数和浮点数识别
+  （4）错误识别报错未能实现，因为删去了空白字符，导致无法定位，此代码还在改进中，预计时间：2019.10.22前
+4.源代码：
+/*词法分析器*/ 
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+//常数编码 99
+//标识符编码 100 
+//全局变量，保留字表 1 ~ 32
+static char reserveWord[32][20] = {
+	"auto", "break", "case", "char", "const", "continue",
+    "default", "do", "double", "else", "enum", "extern",
+    "float", "for", "goto", "if", "int", "long",
+    "register", "return", "short", "signed", "sizeof", "static",
+    "struct", "switch", "typedef", "union", "unsigned", "void",
+    "volatile", "while"
+};
+//运算符、界符表 
+//数组下标相当于编号  33 ~ 76
+static char OperatorOrDelimeter[50][5] = {
+//	"(", ")", "[", "]", "->", ".", //后两种为结构成员访问 
+//	"!", "~", "++" , "--", //否定，按位否定 ，自增，自减 
+//	"*", "/", "+","-","*=","/=","+=","-=","%",	//普通运算,赋值 
+//	"<<", ">>",	//位运算 
+//	"<", "<=", ">", ">=","==","!=",	//比较 
+//	"&",	//按位与 
+//	"^",	//按位异或 
+//	"|",	//按位或 
+//	"||",	//逻辑或 
+//	"&&",	//逻辑与 
+//	"?",":",	//条件 
+//	",", 	//逗号运算符（表顺序） 
+//	"{","}",	//界符，还包括<>,(),[],:,; 
+//	"'",
+//	"\\"	//转义字符，相当于 '\' 
+	"(", ")", "[", "]","{","}", ".","~","^","," ,":","%","\'","\\","?",
+	"+","+=","++","-","-=","--","->","*","*=","/","/=","=","==","&","&&","<","<=",
+	"<<",">",">=",">>","|","||","!","!=",";","_","#","\""
+	
+};
+
+//程序识别时建立 
+//建立标识符表、常数表，在最后输出的时候只需要每种输出一个，无需重复输出多个 
+static char biaoShi[1000][50] = {""};//标识符表
+static char number[1000][20] = {""};	//常数表，由于以字符串形式表示，所以定义为二维数组 
+static char Chinese[10000][50] = {""};  //中文表，不做输出 
+
+void fileFilter(char file[],int chNum);
+void Scanner(int *num,char file[],char word[],int *pNow); 
+int isReserveWord(char reserveWord[][20],char word[]); 
+int isDigit(char ch);
+int isCharacter(char ch);
+
+int main(void){
+	
+	//读取文件
+	FILE *fp = NULL;
+	  
+	if((fp = fopen("D:\\CTest\\编译原理\\词法分析器\\code02.txt","r")) == NULL){
+		printf("文件打开错误!\n");
+		return ;
+	}
+	
+	char file[10000] = {'\0'};	//读入文件中的程序
+	char ch;	//读入单个字符 
+	ch = fgetc(fp); 
+	int chNum = 0;	//存储文件中字符个数  
+	while(ch != '$'){
+		file[chNum] = ch;
+		ch = fgetc(fp);
+		chNum ++; 
+	} 
+	file[chNum ++] = '$';
+	file[chNum ++] = '\0';
+	//文件预处理：注释、\t等,数组存储过滤后的结果
+	fileFilter(file,chNum); 
+	fclose(fp);
+	 
+//	printf("file :\n%s\n",file); 
+	
+	FILE *ffp = NULL;	//输出内容写入文件中
+	if((ffp = fopen("D:\\CTest\\编译原理\\词法分析器\\result.txt","w+")) == NULL){
+		printf("结果无法写入文件!\n");
+		return ;
+	} 
+	//根据查找函数返回的种别码进行输出 
+	int num = -1;	//定义源代码以'$'符号结束，返回 0，所以初始化为 -1 
+	char word[20] = {'\0'};
+	int i;
+	int count_num = 1,count_biao = 1,count_Chinese;	//记录常数表、标识符中的个数 
+	int pNow = 0;	//保留当前文件扫描位置 
+	while(0 != num){
+		Scanner(&num,file,word,&pNow);	//返回种别码，源程序存储数组，保留单词数组，字符个数 
+//		printf("num = %d\tword = %s\tpNow = %d\n",num,word,pNow);
+//		printf("num = %d\n",num);
+		if(num >= 1 && num <= 32){	//保留字 
+			printf("<%s , -->\n",reserveWord[num]);
+			fprintf(ffp,"<%s , -->\n",reserveWord[num]);
+			
+		}
+		else if(num >= 33 && num <= 77){ //运算符、界符 
+
+			//返回的num值，是运算符的编号，在数组中的下标需要减去前面保留字的 32，以及下标从0开始的 1 
+			printf("<%s , -->\n",OperatorOrDelimeter[num - 33]);
+			fprintf(ffp,"<%s , -->\n",OperatorOrDelimeter[num - 33 - 1]);
+		}
+		else if(num == 99){
+			
+			//建立常数表，插入搜索的数字，以字符串形式保存和输出 
+//			printf("00word00 = %s\t",word);
+			for(i = 0;i < count_num;i ++){
+				if(strcmp(number[i],word) == 0) break;
+				if(strcmp(number[i],"") == 0){
+					printf("<常数 , %s>\n",word);
+					strcpy(number[i],word);
+					count_num ++;
+					break;
+				}
+			} 
+		}
+		else if(num == 100){
+			
+			//插入标识符表中
+			for(i = 0;i < count_biao;i ++){
+				//扫描现有标识符表 
+				if(strcmp(biaoShi[i],word) == 0) break;	//表中已经存在该标识符，不再存储 
+//				printf("%d %s\n",i,biaoShi[i]); 
+				if(strcmp(biaoShi[i],"") == 0){	//在表中查找可存放的空间 			
+					printf("<标识符 , %s>\n",word);
+					strcpy(biaoShi[i],word);
+					count_biao ++;
+					break;
+				}
+			}
+		}
+		else if(num == 666){
+			//插入中文字符表 
+			for(i = 0;i < count_Chinese;i ++){
+				//扫描现有中文字符表 
+				if(strcmp(Chinese[i],word) == 0) break;	//表中已经存在该字符，不再存储 
+//				printf("%d %s\n",i,Chinese[i]); 
+				if(strcmp(Chinese[i],"") == 0){	//在表中查找可存放的空间 			
+					printf("<中文字符 , %s>\n",word);
+					strcpy(Chinese[i],word);
+					count_Chinese ++;
+					break;
+				}
+			}
+		} 
+		else if(num == 888){	//换行符、制表符、空格 
+			pNow ++; 
+			continue ; 
+		} 
+	} 
+	for(i = 0;i < count_biao - 1;i ++){
+		if(biaoShi[i] != ""){
+			printf("<标识符 %d , %s>\n",i + 1,biaoShi[i]);
+			fprintf(ffp,"<标识符 %d , %s>\n",i + 1,biaoShi[i]);
+		}
+	}
+	
+	for(i = 0;i < count_num - 1;i ++){
+		if(number[i] != 0){
+			printf("<常数 %d , %s>\n",i + 1,number[i]);
+			fprintf(ffp,"<常数 %d , %s>\n",i + 1,number[i]);
+		}
+	}
+	
+	fclose(ffp);
+	return 0;
+} 
+
+//预处理函数 
+void fileFilter(char file[],int chNum){
+	
+	int i = 0,j = 0;
+	char fileN[10000];
+	for(i = 0;i <= chNum;i ++){
+		/*单行注释*/
+		if('/' == file[i] && '/' == file[i + 1]){
+			i += 2;
+			while(file[i] != '\n')
+				i ++;
+		} 
+		/*多行注释*/ 
+		if('/' == file[i] && '*' == file[i + 1]){
+			i += 2;
+			while('*' != file[i] || '/' != file[i + 1]){
+				i ++;
+				/*缺少注释结束符号*/
+				if('$' == file[i]){
+					printf("缺少注释结束符号，请检查源文件\n");
+					exit(0) ;	//结束程序 
+				}
+			}
+			i += 2;
+		}
+	 	
+	 	//对换行符不做过滤，出错定位行列时使用 
+//		if('\t' != file[i]){
+			fileN[j ++] = file[i];
+//		} 
+	}
+	fileN[++ j] = '\0';
+	strcpy(file,fileN);
+}
+
+//识别字母
+int isCharacter(char ch){
+	if(ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z'){
+		return 1;
+	}
+	return 0;
+} 
+
+//识别数字
+int isDigit(char ch){
+	if(ch >= '0' && ch <= '9')
+		return 1;
+	return 0;
+} 
+
+//识别保留字
+int isReserveWord(char reserveWord[][20],char word[]){
+	
+	int i,j;  
+	int flag = 0;
+//	printf("%s\n",word);
+	for(i = 0;i < 32;i ++){
+//		printf("word = %s\treserveWord[i] = %s\n",word,reserveWord[i]);
+		if(strcmp(reserveWord[i],word) == 0){
+			return i;
+		} 
+	} 
+	return 100;
+}  
+
+//查找函数 
+void Scanner(int *num,char file[],char word[],int *pNow){
+ 
+	*num = -1;	//种别码标识符初始化 
+	char ch;
+	int i = 0,j = 0,k = 0;
+	//防止多个空格干扰
+	ch = file[*pNow]; 
+	while(ch == ' '){
+		*pNow += 1;
+		ch = file[*pNow];
+	} 
+
+	//每次清空保存单词的数组 
+	for(k = 0;k < 20;k ++)
+		word[k] = '\0'; 
+		
+	k = 0;	//word数组指针从0开始  
+	if(ch == '$'){
+		
+		*num = 0;
+		return ;	
+	
+	}
+	//标识符或保留字判断,字母数字下划线 
+	else if(isCharacter(ch)){
+		
+		word[k ++] = ch;
+		*pNow += 1;
+		ch = file[*pNow];
+		while(isCharacter(ch) || isDigit(ch)){
+			word[k ++] = ch;
+			*pNow += 1;
+			ch = file[*pNow];
+		}	 
+		word[k] = '\0';	//表示有用字符收集完  
+//		printf("word_length = %d\n",strlen(word));
+//		printf("000%s000\n",word);
+		*num = isReserveWord(reserveWord,word); //判断是否为保留字的函数中返回种别码，未找到则为标识符 
+		return ;
+	}
+	else if(isDigit(ch)){
+		int flag = 0;	//小数点标志 
+		word[k ++] = ch;
+		*pNow += 1;
+		ch = file[*pNow];
+		while(isDigit(ch) || ch == '.'){
+			if(ch == '.'){	//只有一个小数点		
+				if(flag == 0){
+					flag = 1;
+					word[k ++] = ch;
+					*pNow += 1;
+					ch = file[*pNow];				
+				}	
+				else{
+					printf("数字格式错误，程序结束！\n");
+					*num = 0;
+					return ;
+				}
+			}
+			else{
+				word[k ++] = ch;
+				*pNow += 1;
+				ch = file[*pNow];
+			}
+		}
+//		printf("k = %d\n",k); 
+		word[k] = '\0';
+//		printf("word = %s\n",word);
+		*num = 99;	//表示该单词为常数 
+		
+		return ;
+	} 
+	else if(ch == '(' || ch == ')' || ch == '[' || ch == ']' || ch == '{' || ch == '}'|| ch == '.' || ch == '~' 
+			|| ch == '^' || ch == ',' || ch == ':' || ch == '%' || ch == '\'' || ch == '\\' || ch == '?'){
+//		printf("ch = %c\n",ch); 
+		*pNow += 1;
+		for(i = 0;i < 15;i ++){
+			if(strcmp(&ch,OperatorOrDelimeter[i]) == 0){ 
+				*num = 32 + i + 1;	//返回运算符的编号，所以 + 1 
+				return ;
+			}
+		}
+	}
+	else if(ch == '+'){
+		ch = file[*pNow + 1];
+		if(ch == '='){
+			*num = 49;
+			*pNow += 2;	//当前拿出两个字符，指针前移一位 
+			return ;
+		}
+		else if(ch == '+'){
+			*num = 50;
+			*pNow += 2;
+			return ;
+		}
+		else{ 
+			*num = 48;
+			*pNow += 2;
+			return ;
+		}
+	}
+	else if(ch == '-'){
+		ch = file[*pNow + 1];
+		if(ch == '='){
+			*num = 52;
+			*pNow += 2;
+			return ;
+		}
+		else if(ch == '-'){
+			*num = 53;
+			*pNow += 2;
+			return ;
+		}
+		else if(ch == '>'){
+			*num = 54;
+			*pNow += 2;
+			return ;
+		}
+		else{ 
+			*num = 51;
+			*pNow += 1;
+			return ;
+		} 
+	}
+	else if(ch == '*'){
+		ch = file[*pNow + 1];
+		if(ch == '='){
+			*num = 56;
+			*pNow += 2;
+			return ;
+		} 
+		else{
+			*num = 55;
+			*pNow += 1;
+			return ;
+		}
+	}
+	else if(ch == '/'){
+		ch = file[*pNow + 1];
+		if(ch == '='){
+			*num = 58;
+			*pNow += 2;
+			return ;
+		}
+		else{
+			*num = 57;
+			*pNow += 1;
+			return ;
+		}
+	}
+	else if(ch == '='){
+		ch = file[*pNow + 1]; 
+		if(ch == '='){
+			*num = 60;
+			*pNow += 2;
+			return ;
+		}
+		else{
+			*num = 59;
+			*pNow += 1;
+			return ;
+		}
+	}
+	else if(ch == '&'){
+		ch = file[*pNow + 1];
+		if(ch == '&'){
+			*num = 62;
+			*pNow += 2;
+			return ;
+		}
+		else{
+			*num = 61;
+			*pNow += 1;
+			return ;
+		} 
+	} 
+	else if(ch == '<'){
+		ch = file[*pNow + 1];
+		if(ch == '='){
+			*num = 64;
+			*pNow += 2;
+			return ;
+		}
+		else if(ch == '<'){
+			*num = 65;
+			*pNow += 2;
+			return ;
+		}
+		else{
+			*num = 63;
+			*pNow += 1;
+			return ;
+		}
+	}
+	else if(ch == '>'){
+		ch = file[*pNow + 1];
+		if(ch == '='){
+			*num = 67;
+			*pNow += 2;
+			return ;
+		}
+		else if(ch == '>'){
+			*num = 68;
+			*pNow += 2;
+			return ;
+		}
+		else{
+			*num = 66;
+			*pNow += 1;
+			return ;
+		}
+	}
+	else if(ch == '|'){
+		ch = file[*pNow + 1];
+		if(ch == '|'){
+			*num = 70;
+			*pNow += 2;
+			return ;
+		}
+		else{
+			*num = 69;
+			*pNow += 1;
+			return ;
+		}
+	}
+	else if(ch == '!'){
+		ch = file[*pNow + 1];
+		if(ch == '='){
+			*num = 72;
+			*pNow += 2;
+			return ;
+		}
+		else{
+			*num = 71;
+			*pNow += 1;
+			return ;
+		}
+	}
+	else if(ch == ';'){
+		*num = 73;
+		*pNow += 1;
+		return ;
+	}
+	// || ch == '_'|| ch == '#' || ch == '\"'
+	else if(ch == '_'){
+		*num = 74;
+		*pNow += 1;
+		return ;
+	}
+	else if(ch == '#'){
+		*num = 75;
+		*pNow += 1;
+		return ;
+	}
+	else if(ch == '\"'){
+		*num = 76;
+		*pNow += 1;
+		return ;
+	}
+	else if(ch == '\t' || ch == '\n'){
+		*num = 888;
+		return ;
+	}
+	else if(ch == '\0'){ //文件扫描结束 
+		printf("扫描结束!\n");
+		exit(0);
+	}
+	else{
+//		printf("ch = %c\n",ch); 
+		printf("非法字符 或 中文字符，程序结束!\n");
+		*num = 0;
+		return ; 
+	} 
+}
