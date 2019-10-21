@@ -39,7 +39,7 @@ int main(int argc,char *argv[]){
 //        printf("test000000000000000000000\n");
     /*
      * 代码填写
-     * 用pthread_creat创建一个普通的线程，
+     * 用pthread_create创建一个普通的线程，
      * 线程id存入pthread_id[i]中，线程执行函数是thread_worker
      * 且i作为参数传递给线程
      * */
