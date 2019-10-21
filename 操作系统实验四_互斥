@@ -1,0 +1,76 @@
+实验目的：
+  通过观察、分析实验现象，深入理解互斥锁的原理即特点，掌握在POSIX规范中的互斥函数的功能即使用方法
+实验前准备：
+  了解互斥锁的加锁机制及相关的系统调用
+  1、静态创建锁
+    pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+  2、互斥锁的类型：
+    　PTHREAD_MUTEX_TIMED_NP，这是缺省值，也就是普通锁。
+     当一个线程加锁以后，其余请求锁的线程将形成一个等待队列，并在解锁后按优先级获得锁。
+     这种锁策略保证了资源分配的公平性。（本实验不指定锁的类型，默认为此类型）
+  3、锁的释放
+    int pthread_mutex_destory(&mutex);
+    //前提是当前锁必须是已释放的状态
+  4、锁操作
+    上锁：int pthread_mutex_lock(pthread_mutex_t *mutex)
+    解锁：int pthread_mutex_unlock(pthread_mutex_t *mutex)
+　　测试加锁：int pthread_mutex_trylock(pthread_mutex_t *mutex)//当前锁已锁时返回EBUSY而不是挂起等待
+实验内容：
+/*POSIX下线程死锁*/
+#include <stdio.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <ctype.h>
+#include <pthread.h>
+
+#define LOOP_TIMES 100
+/*互斥锁的静态初始化*/
+pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
+
+void *thread_worker(void *);
+void critical_section(int thread_num,int i);
+
+int main(void){
+  int rtn,i;
+  pthread_t pthread_id = 0;     //存放子线程的id
+
+  //创建两个线程，调用thread_worker函数
+  rtn = pthread_create(&pthread_id,NULL,thread_worker,NULL);
+  if(rtn != 0){
+    printf("pthread_create ERROR!\n");
+ }
+  for(i = 0;i < LOOP_TIMES;i ++){
+    //通过加锁实现对共享变量的互斥访问
+    //开始时，线程1对资源的访问遵循先1后2的顺序，线程2则相反
+    //此时可能出现两个线程各拿到一个锁而都在等待对方释放的情况
+    //则出现死锁
+    //解决方法：破坏"循环等待条件"规定统一的加锁顺序1->2
+    pthread_mutex_lock(&mutex1);
+    pthread_mutex_lock(&mutex2);
+    //临界区
+    critical_section(1,i);
+    pthread_mutex_unlock(&mutex1);
+    pthread_mutex_unlock(&mutex2);
+}
+
+  pthread_mutex_destroy(&mutex1);
+  pthread_mutex_destroy(&mutex2);
+  return 0;
+}
+void *thread_worker(void *p){
+  int i;
+  for(i = 0;i < LOOP_TIMES;i ++){
+    //pthread_mutex_lock(&mutex2);
+    //pthread_mutex_lock(&mutex1);
+    pthread_mutex_lock(&mutex1);
+    pthread_mutex_lock(&mutex2);
+    critical_section(2,i);
+    pthread_mutex_unlock(&mutex1);
+    pthread_mutex_unlock(&mutex2);
+  }
+}
+
+void critical_section(int thread_num,int i){
+  printf("Thread%d:%d\n",thread_num,i);
+}
