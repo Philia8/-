@@ -47,7 +47,12 @@ int main(int argc,char *argv[]){
     //创建线程，存储线程tid
     //此处函数调用需要进一步探讨
     //函数第三个、第四个参数不为空时,在C/C++中，将参数地址进行传递，函数中使用时进行类型转换即可
-    rtn = pthread_create(&pthread_id[i],NULL,(void *)thread_worker,&i);
+    /*此时出现问题：counter计数时，总会出现某一列没有数据，就是为0的情况，思考后得出结果如下：
+    由于采用地址传递，则i的地址传入参数后，还未来得及使用该i值，可能由后来的线程对i值进行修改，则对应线程的编号丢失，无法进行后面的counter统计
+    */
+    //rtn = pthread_create(&pthread_id[i],NULL,(void *)thread_worker,&i);
+    //解决：将i作为参数，在实际的函数中直接使用而无需经过强制类型转换
+    rtn = pthread_create(&pthread_id[i],NULL,(void *)thread_worker,i);  //
   }
   do{
   /*
@@ -72,9 +77,10 @@ void* thread_worker(void* p){
    * 把main中的 i的值传递给thread_num
    * */
   //void * 传递参数,通用指针，参数传递时自动匹配对应类型，使用时通过类型转换  
-  thread_num = *((int *)p);
-  //此处需要思考,猜想为强制类型转换
-  //此处因为函数参数为void *即无类型指针，在使用时需要进行强制类型转换，再指针调用
+  //thread_num = *((int *)p);
+  thread_num = p;
+  //此处因为函数参数为void *即无类型指针，在使用时无需进行强制类型转换
+  //void *是无类型指针，任何类型的指针都可以直接赋值给它，无需进行强制类型转换
 
   for(;;){      //死循环
     counter[thread_num] ++; //当前进程的counter + 1
@@ -105,3 +111,12 @@ void* thread_worker(void* p){
         如果输入q，所有线程都结束。线程终止的两种方式是：执行return或pthread_exit()。
        执行return：在主线程中，如果main函数返回或调用了exit函数退出主线程，则整个进程中的所有线程也将终止，因此在主线程中不能过早的从main函数返回，可调用pthread_join()函数同步。
        执行pthread_exit()：另一种情况是如果主线程调用pthread_exit()函数，则仅仅是主线程消亡，进程不会结束，进程内的其他线程也不会终止，直到所有线程结束，进程才会结束。
+
+2019.10.21
+知识点补充
+void *是无类型指针，任何类型的指针都可以直接赋值给它，无需进行强制类型转换
+但是void*类型的参数不能对有类型参数进行赋值
+该博客中void* 类型的解释和应用可做参考
+https://www.cnblogs.com/wuyudong/p/c-void-point.html
+
+
