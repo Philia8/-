@@ -1,0 +1,70 @@
+实验目的：
+  前面的实验三中，最后的实验结果显示main_counter和sum的值之间始终存在不同步的问题，在
+最后判断为main_counter为共享变量，被三个线程抢占，由于main_counter++不是原子操作，在
+赋值时可能由于另一个线程抢占资源而导致赋值失败，最后循环次数越多，main_counter与sum的
+差距越大，且始终小于sum。
+  此次试验目的：在实验三代码的基础上进行改进，找出临界资源和临界区，借助互斥锁实现main_counter
+和sum的同步
+实验思路：
+  main_counter由于是共享变量，所以为临界资源
+  临界区：mian_counter++
+  (1)创建互斥锁 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER; //利用宏静态创初始化锁
+  (2)加锁：pthread_muext_lock(&mutex1);
+  (3)释放锁：pthread_mutex_unlock(&mutex1);
+  (4)销毁锁：pthread_mutex_destroy(&mutex1);  //前提是当前锁没有上锁
+源代码：
+   /*POSIX线程控制实验*/
+#include <stdio.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <ctype.h>
+#include <pthread.h>
+#include <stdlib.h>
+
+#define MAX_THREAD 3 //线程的最大个数
+
+pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
+unsigned long long main_counter = 0,counter[MAX_THREAD] = {0};
+
+void *thread_worker(void *);
+
+int main(int argc,char *argv[]){
+  int i,rtn,ch;
+  pthread_t pthread_id[MAX_THREAD] = {0}; //存放所有的线程id
+
+  for(i = 0;i < MAX_THREAD;i ++){
+
+    rtn = pthread_create(&pthread_id[i],NULL,(void *)thread_worker,i);
+  }
+  do{
+  /*
+   * 用户按一次回车，执行下面的循环体一次，按q退出
+   * */
+          unsigned long long sum = 0;
+          /*求所有线程的counter的和*/
+          for(i = 0;i < MAX_THREAD;i ++){
+            sum += counter[i];
+            printf("%llu\t",counter[i]);
+          }
+          printf("%llu/%llu",main_counter,sum);
+  }while((ch = getchar()) != 'q');
+  pthread_mutex_destroy(&mutex1);
+  return 0;
+}
+
+void* thread_worker(void* p){
+  int thread_num; //线程编号
+  thread_num = p;
+  for(;;){      //死循环
+    counter[thread_num] ++; //当前进程的counter + 1
+    /*
+    当前main_counter为共享资源，当线程1拿到该资源进行加锁，其余线程想要访问该资源则阻塞，
+    直到拿到锁的线程主动释放，则实现了main_counter和sum的同步
+    */
+    pthread_mutex_lock(&mutex1);
+    main_counter ++; //main_counter + 1
+    pthread_mutex_unlock(&mutex1);
+  }
+}
+
+
