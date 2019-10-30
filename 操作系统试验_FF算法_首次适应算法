@@ -198,7 +198,7 @@ void show(Node *head){
 	Node *p = head->next;
 	
 	//只有一个空闲区且为最大空间size，则未分配任何作业 
-	printf("p->size = %d\n",p->size);
+//	printf("p->size = %d\n",p->size);
 	if(p->size == SIZE){
 		printf("还未为作业分配空间!\n");
 		return ;
