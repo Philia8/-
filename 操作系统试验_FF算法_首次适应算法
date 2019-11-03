@@ -60,6 +60,7 @@ int main(void){
 				break;
 			}
 			case 3 : {
+//				printf("state = 0 ：未分配\t state = 1 ：作业区")
 				show(head);
 				break;
 			} 
@@ -114,6 +115,10 @@ int add(Node *head,int id,int size){
 	n->id = -1;
 	n->size = sizeOld - size;
 	n->start = p->tail + 1;
+	if(n->start >= SIZE - 1){
+		p->next = NULL;
+		return ; 
+	} 
 	n->state = 0;
 	n->tail = n->start + n->size - 1;
 
@@ -198,15 +203,16 @@ void show(Node *head){
 	Node *p = head->next;
 	
 	//只有一个空闲区且为最大空间size，则未分配任何作业 
-//	printf("p->size = %d\n",p->size);
-	if(p->size == SIZE){
+	if(p->size == SIZE && 0 == p->state){
 		printf("还未为作业分配空间!\n");
 		return ;
 	}
 	while(p != NULL){
-		if(p->state != 0){
-			printf("id = %d\tstart = %d\ttail = %d\tsize = %d\n",p->id,p->start,p->tail,p->size);
-		}
+		if(0 == p->state){
+			printf("**空闲区**\tstart = %d\ttail = %d\tsize = %d\n",p->start,p->tail,p->size);
+		} 
+		else 	
+			printf("作业id = %d\tstart = %d\ttail = %d\tsize = %d\n",p->id,p->start,p->tail,p->size);
 		p = p->next;
 	}
 	return ;
