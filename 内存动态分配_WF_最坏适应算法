@@ -1,0 +1,271 @@
+//最坏适应算法
+/*
+说明：
+	最坏适应算法是每次将内存链中空闲区size最大的空闲区分配给作业
+	要求空闲区链中的空闲区按照size降序排列
+	每次进行作业分配后，将剩余size作为新的空闲区插入合适的位置，
+	使空闲区链始终按照size的降序排列 
+*/ 
+#include <stdio.h>
+#include <stdlib.h> 
+//数据结构：双向链表 
+typedef struct node{
+	int id;
+	int size;
+	int start;
+	int tail;
+	int state;	//0为空闲区，1为作业区 
+	struct node* next;
+	struct node* pre; 
+}Node; 
+
+int jobNum = 0;
+int SIZE;	//记录空闲区	
+Node *init();
+int add(Node *head,Node *tail,int id,int size);
+int del(Node *head,Node *tail,int id);
+void show(Node *head);
+void findBest(Node *head,Node *tail,Node *node);
+int main(void){
+		
+	printf("请输入初始内存大小：\n");
+	scanf("%d",&SIZE);
+	Node *head = NULL;
+	Node *tail = (Node *)malloc(sizeof(Node));
+	tail->next = NULL; 
+	head = init();
+	//增加尾结点 
+	tail->pre = head->next;
+	head->next->next = tail;	
+	while(1){
+		int op, id, size;
+        printf("\n1: 为新作业分配内存\n");
+        printf("2: 撤销作业释放内存\n");
+ 	    printf("3: 查看Bf算法内存分配\n");        
+		printf("4：退出\n");
+		printf( "请输入操作: \n" );
+        scanf( "%d", &op );
+        switch(op){
+        	case 1 :{
+        		
+        		printf("请输入作业id和作业大小size\n");
+        		printf("id = ");
+        		scanf("%d",&id);
+        		printf("size = ");
+        		scanf("%d",&size);
+        		if(add(head,tail,id,size))
+        			printf("内存分配成功!\n");
+				else
+					printf("内存分配失败!\n");
+				break;
+			}
+        	case 2 :{
+        		printf("请输入要撤销的作业id\n");
+        		scanf("%d",&id);
+        		if(del(head,tail,id))
+        			printf("作业撤销成功!\n");
+				else
+					printf("作业撤销失败!\n");
+				break;
+			}
+			case 3 :{
+				show(head);
+				break;
+			}
+			case 4 :{
+				return 0;
+			}
+			default :{
+				printf("请输入正确指令！\n");
+			};
+		}
+	}
+	
+	return 0;
+} 
+
+Node* init(){
+	
+	Node *head = (Node *)malloc(sizeof(Node));	//头结点
+	head->size = 0;	
+	head->next = NULL; 	 
+	Node *node = (Node *)malloc(sizeof(Node));	//首结点
+	
+	node->id = -1;
+	node->size = SIZE;
+	node->start = 0;
+	node->tail = SIZE - 1;
+	node->state = 0;
+	node->pre = head;
+	node->next = NULL;
+	
+	
+	head->next = node;
+	head->pre = NULL;	 
+	
+	return head; 
+}
+
+//分配作业 
+//内存分配的过程中，将剩余空闲区按照降序插入正确位置 
+int add(Node *head,Node *tail,int id,int size){
+
+	Node *t = head->next;
+	while(t != NULL){
+		if(t->size >= size && t->state == 0)	break;
+		t = t->next;
+	}
+	
+	if(t == NULL){
+		return 0;
+	}
+	
+	int size_new;
+	size_new = t->size - size;	//新空闲区的大小等于当前空闲区的大小减去作业大小 
+
+	t->id = id;
+	t->size = size;
+	t->tail = t->start + size - 1;
+	t->state = 1;
+	
+	if(size_new != 0){
+		Node *free = (Node *)malloc(sizeof(Node));
+		free->id = -1;
+		free->size = size_new;
+		free->start = t->start + size;
+		free->state = 0;
+		free->tail = free->start + size_new - 1;		
+		findBest(head,t,free); 
+	}
+	//空闲区刚好分配作业，则不用创建新的结点 
+	else{ 
+	}
+
+	 
+	jobNum ++;
+	return 1; 
+}
+
+//从head向后查找，直到找到size大于free->size的空闲区，插入前面
+void findBest(Node *head,Node *tail,Node *node){
+	
+	Node *p = head;
+	while(p != tail){
+		if(p->size < node->size && p->state == 0)	
+			break;
+		p = p->next;
+	}
+	node->pre = p->pre;
+	p->pre->next = node;
+	p->pre = node;
+	node->next = p;
+	
+	return ;
+} 
+
+//撤销作业 
+//撤销作业时，需要整理好该作业前后结点的关系 
+int del(Node *head,Node *tail,int id){
+	
+	Node *t = head->next; 
+	
+	int flag_pre = 0,flag_next = 0;
+	while(t != NULL){
+		flag_pre = 0;
+		flag_next = 0;
+		if(t->id == id){
+			if(t->next == NULL)
+				flag_next = -1;
+			else if(t->next->state == 0 && t->next->start == (t->tail + 1)){
+				flag_next = 1;
+			}
+			if(t->pre->state == 0 && t->start == (t->pre->tail + 1)){
+				flag_pre = 1; 
+			}
+			break;
+		}
+		t = t->next;
+	}
+	if(t == NULL){
+		return 0; 
+	}
+	Node *p = NULL;
+	//前后都有空闲区 
+	if(flag_pre == 1 && flag_next == 1){
+		p = t->pre->pre;
+		t->size = t->pre->size + t->size + t->next->size;
+		t->start = t->pre->start;
+		t->tail = t->next->tail;
+		t->id = -1;
+		t->state = 0;
+		if(t->next->next != NULL){
+			t->next->next->pre = t->pre->pre;
+			t->pre->pre->next = t->next->next;
+		}
+		else{
+			t->pre->pre->next = NULL; 
+		}
+	} 
+	//前面有空闲区 
+	else if(flag_pre == 1){
+		p = t->pre->pre;
+		t->size = t->pre->size + t->size;
+		t->start = t->pre->start;
+		t->tail = t->tail;
+		t->id = -1;
+		t->state = 0;
+		if(t->next != NULL){
+			t->next->pre = t->pre->pre;
+			t->pre->pre->next = t->next;
+		}
+		else{  
+			t->pre->pre->next = NULL;
+		}
+//		printf("t->size = %d\n",t->size);
+//		show(t->pre);
+	}
+	//后面有空闲区 
+	else if(flag_next == 1){
+		p = t->pre;
+		t->size = t->size + t->next->size;
+		t->start = t->start;
+		t->tail = t->next->tail;
+		t->id = -1;
+		t->state = 0;
+		t->pre->next = t->next->next;
+		t->next->pre = t->pre->pre;
+	}
+	else{
+		p = t;
+		t->id = -1;
+	 	t->state = 0; 
+	 	if(t->next != NULL){	 		
+		 	t->next->pre = t->pre;
+		 	t->pre->next = t->next;
+		 }
+	 	else{
+	 		t->pre->next = NULL;
+		 }
+	
+	}  
+	findBest(head,tail,t); 
+	jobNum --;
+	return 1;
+}
+
+//显示内存分配情况 
+void show(Node *head){ 
+
+	Node *t = head->next;
+	while(t != NULL){
+//		printf("state = %d\n",t->state);
+		if(t->state == 0){
+			printf("空闲区：\tstart = %d\ttail = %d\tsize = %d\n",t->start,t->tail,t->size);
+		}
+		else if(t->state == 1){
+			printf("作业id = %d\tstart = %d\ttail = %d\tsize = %d\n",t->id,t->start,t->tail,t->size);
+		} 
+		t = t->next;
+	}	
+	return ;
+}
