@@ -1,0 +1,225 @@
+/*FF__首次适应算法*/
+/*
+带头结点的单链表实现首次适应算法
+结果说明：
+  每次分配作业时，会在空闲区链中选取第一个适合作业大小的空闲区进行分配
+  作业及空闲区的地址按照连续升序排列，不会出现乱序
+*/
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct Node{
+	
+	int start;
+	int tail;
+	int size;
+	int state;	//区分当前是空闲区 0,已分配作业 1
+	int id;		//该参数初始状态下为 -1,否则为作业 id
+	struct  Node *next;
+}Node;
+int SIZE = 0; //首次分配空间大小 
+int jobNum = 0;	//记录总的作业数 
+Node *init();
+int add(Node *head,int id,int size);
+int del(Node *head,int id);
+void show(Node *head);
+
+int main(void){
+	
+	printf("请输入存储空间大小：\n");
+	scanf("%d",&SIZE);	 
+	Node *head = init();
+	while(1){
+		int op, id, size;
+        printf("\n1: 为新作业分配内存\n");
+        printf("2: 撤销作业释放内存\n");
+ 	    printf("3: 查看FF算法内存分配\n");        
+		printf("4：退出\n");
+		printf( "请输入操作: " );
+        scanf( "%d", &op );
+        switch(op){
+        	//增加新作业 
+			case 1 : {
+        		printf("请输入作业id 和 作业大小size:\nid = ");
+        		scanf("%d",&id);
+        		printf("size = ");
+        		scanf("%d",&size);
+        		if(add(head,id,size)){ 
+					printf("空间分配成功!\n");
+					jobNum ++; 
+				} 
+				else{
+					printf("空间分配失败!\n");
+				}
+				break;
+			} 
+			case 2 : {
+				printf("请输入撤销作业的 id：\n");
+				scanf("%d",&id);
+				if(del(head,id)){
+					jobNum --;
+					printf("作业撤销成功!\n");	
+				}
+				else{
+					printf("作业撤销失败!\n");
+				}
+				break;
+			}
+			case 3 : {
+//				printf("state = 0 ：未分配\t state = 1 ：作业区")
+				show(head);
+				break;
+			} 
+			case 4 : {
+				return 0;
+			} 
+		}
+	}
+	return 0;
+}
+
+Node *init(){
+	
+	Node *head = (Node *)malloc(sizeof(Node));	//头结点
+	head->next = NULL;
+	Node *node = (Node *)malloc(sizeof(Node));
+	node->id = -1;
+	node->size = SIZE;
+	node->start = 0;
+	node->tail = SIZE - 1;
+	node->state = 0;
+	node->next = NULL;
+	
+	head->next = node;
+	
+	return head; 
+}
+
+int add(Node *head,int id,int size){
+	
+	Node *p = head->next;
+	//遍历空闲区链 
+	while(p != NULL){
+		//找到一个空闲区且size大于等于作业size的空闲区 
+		if(-1 == p->id && p->size >= size)
+			break; 
+		p = p->next;
+	}
+	if(p == NULL)	return 0;	//说明未找到能够分配的空闲区
+	
+	//将空闲区划分为两部分，前面存储作业，后面为新的空闲区
+	int sizeOld = p->size;
+	//存储作业 
+	p->id = id;
+	p->size = size;
+	p->state = 1;
+	p->tail = p->start + size - 1;
+	
+	
+	//新空闲区部分
+	Node *n = (Node *)malloc(sizeof(Node));
+	n->id = -1;
+	n->size = sizeOld - size;
+	n->start = p->tail + 1;
+	if(n->start >= SIZE - 1){
+		p->next = NULL;
+		return ; 
+	} 
+	n->state = 0;
+	n->tail = n->start + n->size - 1;
+
+	n->next = p->next;
+	p->next = n;	
+	return ; 
+}
+
+int del(Node *head,int id){
+	
+	Node *p = head->next,*t = p->next;
+	int flag_pre = -1,flag_next = -1;
+	
+	//特殊情况：当前要撤销的作业是最后一个作业，则撤销后只剩最后一个总的空闲区 
+	if(jobNum == 1){
+		
+		p->id = -1;
+		p->size = SIZE;
+		p->start = 0;
+		p->state = 0;
+		p->tail = SIZE - 1;
+		p->next = NULL;
+		
+		return 1; 
+	} 
+	 
+	while(p != NULL){
+		//找到当前要撤销的作业,讨论其前后存储区的状态 
+		if(id == t->id){
+			flag_pre = 0;
+			flag_next = 0; 
+			//作业与前一个空闲区相邻 
+			if(p->state == 0){
+				flag_pre = 1;
+			}
+			//作业与后一个空闲区相邻 
+			if(t->next->state == 0){
+				flag_next = 1;
+			}
+			break;
+		}
+		
+		p = p->next;
+		t = t->next;
+	}
+	
+	//前后都是空闲区,三个分区合为一个空闲区 
+	if(flag_pre == 1 && flag_next == 1){ 
+		p->tail = t->next->tail;
+		p->size = p->size + t->size + t->next->size;
+		p->state = 0;	
+		p->id = -1; 
+		p->next = t->next->next;
+	}
+	//前面是空闲区 
+	else if(flag_pre == 1){
+		p->id = -1;
+		p->size = p->size + t->size;
+		p->state = 0;
+		p->tail = t->tail;
+		p->next = t->next;
+	}
+	//后面是空闲区 
+	else if(flag_next == 1){ 
+		t->id = -1;
+		t->size = t->size + t->next->size;
+		t->state = 0;
+		t->tail = t->next->tail;
+		t->next = t->next->next; 
+	}
+	//前后都不是空闲区，则该分区作为一个空闲区 
+	else{
+		t->id = -1;
+		t->state = 0;
+	} 
+	
+	return ;
+}
+
+//所有作业撤销后陷入死循环结束了程序，需改进 
+void show(Node *head){
+	Node *p = head->next;
+	
+	//只有一个空闲区且为最大空间size，则未分配任何作业 
+	if(p->size == SIZE && 0 == p->state){
+		printf("还未为作业分配空间!\n");
+		return ;
+	}
+	while(p != NULL){
+		if(0 == p->state){
+			printf("**空闲区**\tstart = %d\ttail = %d\tsize = %d\n",p->start,p->tail,p->size);
+		} 
+		else 	
+			printf("作业id = %d\tstart = %d\ttail = %d\tsize = %d\n",p->id,p->start,p->tail,p->size);
+		p = p->next;
+	}
+	return ;
+}
